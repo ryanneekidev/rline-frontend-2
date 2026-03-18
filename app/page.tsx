@@ -75,6 +75,8 @@ export default function Home() {
         )}
       </header>
 
+      {user && <a href="/posts/new">+ New post</a>}
+
       <hr />
 
       {feedLoading && <p>Loading posts...</p>}
