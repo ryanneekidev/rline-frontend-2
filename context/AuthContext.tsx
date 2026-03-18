@@ -29,6 +29,7 @@ interface AuthContextType {
   register: (username: string, email: string, password: string, confirmedPassword: string) => Promise<AuthResult>;
   logout: () => void;
   authFetch: (path: string, options?: RequestInit) => Promise<Response>;
+  getToken: () => string | null;
   setLikes: React.Dispatch<React.SetStateAction<string[]>>;
 }
 
@@ -128,8 +129,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return res;
   }
 
+  function getToken() {
+    return tokenRef.current;
+  }
+
   return (
-    <AuthContext.Provider value={{ user, likes, loading, login, register, logout, authFetch, setLikes }}>
+    <AuthContext.Provider value={{ user, likes, loading, login, register, logout, authFetch, getToken, setLikes }}>
       {children}
     </AuthContext.Provider>
   );

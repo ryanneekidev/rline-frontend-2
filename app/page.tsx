@@ -65,8 +65,9 @@ export default function Home() {
         <strong>RLine</strong>
         {user ? (
           <span>
-            {' '}| Logged in as <a href={`/users/${user.username}`}>{user.username}</a>{' '}
-            <button onClick={handleLogout}>Logout</button>
+            {' '}| Logged in as <a href={`/users/${user.username}`}>{user.username}</a>
+            {' '}| <a href="/notifications">Notifications</a>
+            {' '}<button onClick={handleLogout}>Logout</button>
           </span>
         ) : (
           <span>
