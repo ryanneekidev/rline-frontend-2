@@ -1,4 +1,4 @@
-# CLAUDE.md — RLine Backend
+# CLAUDE.md — RLine
 
 ## Project Overview
 
@@ -50,36 +50,298 @@ Goal: verify every backend endpoint works end-to-end through a real UI. No styli
 
 ### Full Product Spec
 
-Everything in the barebones spec, plus:
+Everything in the barebones spec, plus the detailed frontend spec below.
 
-**Auth**
-- Persistent login (auto-refresh on page reload)
+---
 
-**Feed**
-- Pagination or infinite scroll
-- Filter by following (personal feed vs. global feed)
+## Frontend — Full Product Spec
 
-**Posts**
-- Edit and delete own posts
-- Post status (NORMAL vs. ADMIN visibility)
+### Stack
 
-**Comments**
-- Edit and delete own comments
+| Layer | Technology |
+|---|---|
+| Framework | Next.js (App Router) |
+| Language | TypeScript |
+| Styling | Tailwind CSS v4 |
+| Components | shadcn/ui |
+| Font | Inter (Google Fonts) |
 
-**User Profile**
-- Followers / following lists viewable
-- All posts by that user listed on their profile
-- Own profile vs. another user's profile (different actions available)
+---
 
-**Notifications**
-- Notification bell with unread count badge
-- Dropdown panel instead of separate page
+### Design System
 
-**UI/UX**
-- Polished, responsive design
-- Dark mode support
-- Loading states and error messages throughout
-- Empty states (no posts yet, no notifications, etc.)
+#### Color Palette
+
+**Primary — Deep Ruby**
+| Token | Hex | Usage |
+|---|---|---|
+| `primary` | `#BE123C` | Buttons, active links, key accents |
+| `primary-hover` | `#9F1239` | Button hover/active state |
+| `primary-light` | `#FFE4E6` | Subtle tinted backgrounds, badges (light mode) |
+| `primary-muted` | `#4C0519` | Subtle tinted backgrounds, badges (dark mode) |
+
+**Light Mode**
+| Token | Hex | Usage |
+|---|---|---|
+| `bg` | `#FAFAFA` | Page background |
+| `surface` | `#FFFFFF` | Cards, modals, inputs |
+| `border` | `#E5E7EB` | Card borders, dividers, input outlines |
+| `text` | `#111827` | Primary text |
+| `text-secondary` | `#6B7280` | Timestamps, metadata, placeholders |
+| `success` | `#16A34A` | Success toasts, confirmation states |
+| `error` | `#DC2626` | Error messages, destructive actions |
+
+**Dark Mode**
+| Token | Hex | Usage |
+|---|---|---|
+| `bg` | `#0A0A0A` | Page background |
+| `surface` | `#171717` | Cards, modals, inputs |
+| `border` | `#262626` | Card borders, dividers, input outlines |
+| `text` | `#F5F5F5` | Primary text |
+| `text-secondary` | `#A3A3A3` | Timestamps, metadata, placeholders |
+| `success` | `#4ADE80` | Success toasts |
+| `error` | `#F87171` | Error messages |
+
+#### Typography
+
+Font: **Inter** — loaded via `next/font/google`.
+
+| Token | Size | Weight | Usage |
+|---|---|---|---|
+| `text-2xl` | 30px | 700 | Hero/display text (login heading) |
+| `text-xl` | 24px | 700 | Page headings (profile name, page title) |
+| `text-lg` | 18px | 600 | Card titles, section headings |
+| `text-base` | 16px | 400 | Body text, post content, inputs |
+| `text-sm` | 14px | 400 | Metadata, timestamps, labels |
+| `text-xs` | 12px | 400 | Character counters, badges |
+
+#### Spacing & Layout
+
+- **Content width**: max 800px, horizontally centered
+- **Content padding**: 16px horizontal on mobile, 24px on tablet+
+- **Card padding**: 16px all sides
+- **Card border radius**: 12px
+- **Card gap**: 12px between cards in a list
+
+#### Responsive Breakpoints
+
+| Name | Width | Layout changes |
+|---|---|---|
+| Mobile | < 640px | Single column, hamburger nav |
+| Tablet | 640px – 1024px | Single column, full navbar |
+| Desktop | > 1024px | Single column, full navbar |
+
+---
+
+### Dark / Light Mode
+
+- Default: **system preference** (`prefers-color-scheme`)
+- User can manually toggle — preference persisted to `localStorage`
+- Toggle button lives in the navbar (sun/moon icon)
+- Implemented via Tailwind's `class` dark mode strategy — `dark` class on `<html>`
+
+---
+
+### Navigation
+
+**Navbar** — persistent across all pages.
+
+**Desktop layout** (tablet and above):
+```
+[ RLine ]  ←————————————————————→  [ Home ] [ Create ] [ Profile ] [ 🔔 3 ] [ ☀/🌙 ]
+```
+- Logo: bold "RLine" in `primary` color, links to `/`
+- Links: Home (`/`), Create (`/posts/new`), Profile (`/users/[username]`)
+- Notification bell: icon + unread count badge in `primary`. Links to `/notifications`. Badge hidden when count is 0
+- Dark mode toggle: sun/moon icon on far right
+- If not logged in: Login and Register links instead of Profile and bell
+
+**Mobile layout** (< 640px):
+```
+[ RLine ]  ←————————————————————→  [ ☀/🌙 ] [ ☰ ]
+```
+- Logo on far left, dark mode toggle + hamburger on far right
+- Hamburger opens a dropdown with all links stacked vertically
+- Dropdown closes on link click or outside tap
+
+**Active route highlighting:**
+- Current page nav link styled with `primary` color + bottom underline
+- On mobile dropdown: active link has `primary-light` (light) / `primary-muted` (dark) background
+
+---
+
+### Cross-Cutting Concerns
+
+#### Loading States
+- **Full page load**: skeleton layout matching page structure
+- **Buttons**: disabled + loading label (e.g. "Posting…", "Following…") while request in flight
+- **Inline actions** (like, follow): button disabled during request
+
+#### Empty States
+| Context | Message |
+|---|---|
+| Feed | "No posts yet. Be the first to post!" |
+| Comments | "No comments yet. Start the conversation." |
+| Notifications | "You're all caught up." |
+| Followers list | "No followers yet." |
+| Following list | "Not following anyone yet." |
+| User's posts on profile | "No posts yet." |
+
+#### Toast Notifications
+- Position: top-right on desktop, top-center on mobile
+- **Success** (green): auto-dismisses after 3s
+- **Error** (red): auto-dismisses after 4s
+- Max one toast visible at a time — new toast replaces current
+- Slides in from top, fades out on dismiss
+
+Success toasts fired on: login, register, post created, post updated, post deleted, comment posted, comment deleted, follow, unfollow, mark notification(s) as read.
+Error toasts fired on: failed like/unlike, failed follow/unfollow, network errors on non-form operations.
+
+#### Form Validation (client-side before submit)
+
+| Form | Rules |
+|---|---|
+| Login | Username required; password required |
+| Register | Username 3–20 chars, alphanumeric + underscores; email valid format; password min 8 chars; confirm password must match |
+| Create / Edit Post | Title required, max 150 chars; content required, max 5000 chars |
+| Create / Edit Comment | Content required, max 1000 chars |
+
+- Errors shown inline below the relevant field in `error` color
+- Character counters shown below fields with limits: format `42 / 150`
+- Counter turns `error` color within 20 characters of the limit and when over
+
+#### Post Content Display
+- Backend HTML-escapes post/comment content before storing (via `express-validator`'s `.escape()`)
+- Frontend must **unescape** HTML entities when rendering (e.g. `&amp;` → `&`, `&lt;` → `<`)
+- Content rendered as plain text — no raw HTML injection
+
+#### Timestamps
+- **Card / list view**: relative time only (e.g. "3 hours ago")
+- **Detail view**: relative time + absolute date in parentheses (e.g. "3 hours ago (March 19, 2026)")
+
+#### Auth Guards
+- Protected pages (`/posts/new`, `/notifications`) redirect unauthenticated users to `/login`
+- After login, redirect back to the originally requested page, not always `/`
+- If silent refresh fails on page load, user is treated as logged out with no forced redirect
+
+---
+
+### Pages
+
+#### `/login` — Login
+- Layout: centered card, max-width 400px
+- Heading: "Welcome back" (`text-2xl`)
+- Subheading: "Log in to your RLine account" (`text-secondary`)
+- Fields: username, password
+- Submit button: full width, `primary`
+- Link: "Don't have an account? Register" → `/register`
+- On success: toast "Logged in successfully", redirect to previous page or `/`
+
+#### `/register` — Register
+- Layout: centered card, max-width 400px
+- Heading: "Create an account" (`text-2xl`)
+- Subheading: "Join RLine today" (`text-secondary`)
+- Fields: username (counter `0 / 20`), email, password, confirm password
+- Submit button: full width, `primary`
+- Link: "Already have an account? Login" → `/login`
+- On success: toast "Account created!", redirect to `/login`
+
+#### `/` — Home Feed
+- Feed toggle: "Global" / "Following" tabs below navbar. Following tab hidden if not logged in
+- Global: all posts. Following: filtered client-side by the user's following list
+- Following list fetched on mount via `GET /users/:userId/following` if logged in
+- Post cards (see Post Card component)
+- Pagination: 10 posts per page, client-side. Previous / page numbers / Next controls at bottom
+- Feed re-fetches on mount
+
+#### Post Card Component
+- Title (`text-lg`), links to `/posts/[postId]`
+- Author (linked to `/users/[username]`) · relative timestamp
+- Content preview: first 200 chars, truncated with "…"
+- Action bar: Like button (heart icon + count, filled/primary when liked) · Comment button (speech bubble + count, links to `/posts/[postId]#comments`)
+- If own post: Edit button → `/posts/[postId]/edit`, Delete button → confirmation dialog
+
+#### `/posts/new` — Create Post
+- Auth-guarded
+- Heading: "New Post"
+- Fields: title (counter `0 / 150`), content textarea 8 rows (counter `0 / 5000`)
+- Submit: "Post" (`primary`), Cancel link → `/`
+- On success: toast "Post created!", redirect to `/`
+
+#### `/posts/[postId]/edit` — Edit Post
+- Auth + ownership guarded (redirect to post detail if not author)
+- Same layout as Create Post, pre-filled with current data
+- Save button: "Save changes". Cancel link → `/posts/[postId]`
+- Delete button: destructive, outlined in `error` color, opens confirmation dialog
+- On save: toast "Post updated", redirect to `/posts/[postId]`
+- On delete: toast "Post deleted", redirect to `/`
+
+#### `/posts/[postId]` — Post Detail
+- Back link: "← Back to feed"
+- Title (`text-xl`), author (linked), relative timestamp (absolute date in parentheses)
+- Full content (HTML-unescaped, plain text)
+- Like button + count
+- If own post: Edit button → `/posts/[postId]/edit`, Delete button → confirmation dialog
+- Comments section (`#comments`): heading "Comments (N)"
+- Each comment: author (linked), relative timestamp, content. If own comment: inline Edit + Delete
+- Comment form (or "Login to comment" link if not authenticated): textarea (counter `0 / 1000`), "Post comment" button
+- On comment submit: refetch post, clear textarea, toast "Comment posted"
+- On comment edit: inline textarea replaces text, Save/Cancel buttons
+- On comment delete: refetch post, toast "Comment deleted"
+
+#### `/users/[username]` — User Profile
+- Profile header: username (`text-xl`), role badge (ADMIN/OWNER only), "Member since [date]"
+- Stats row: Posts · Followers · Following (follower/following counts are links that open a modal)
+- If other user: Follow/Unfollow button (`primary`). If own profile: placeholder "Edit profile" button
+- Posts tab: all posts by this user via Post Card, filtered client-side from `GET /posts/all` by `authorId`. Paginated 10 per page
+- Followers/Following modal: list of usernames (linked), each with Follow/Unfollow if logged in and not own profile
+- On follow/unfollow: optimistic count update, success toast
+
+#### `/notifications` — Notifications
+- Auth-guarded
+- Heading: "Notifications"
+- "Mark all as read" button (only if unread notifications exist)
+- Each notification: unread indicator (left `primary` border), notification text, relative timestamp, "Mark as read" button (unread only)
+- Unread items: full opacity. Read items: reduced opacity
+- Empty state: "You're all caught up."
+- SSE stream opened on mount, refetches full list on each event
+- On mark all read: optimistic update, toast "All notifications marked as read"
+
+#### Notification Bell (Navbar)
+- Badge: unread count, `primary` background, white `text-xs`
+- Badge hidden when count is 0
+- Unread count derived from `GET /notifications` on mount (count unread items)
+- SSE stream (opened globally in `AuthContext` on login) increments badge in real time
+- Navigates to `/notifications` on click
+
+---
+
+### Component Inventory
+
+| Component | Description |
+|---|---|
+| `Navbar` | Persistent top nav with mobile hamburger |
+| `PostCard` | Post preview card used in feed and profile |
+| `CommentItem` | Single comment with inline edit/delete |
+| `Toast` / `ToastProvider` | Global auto-dismissing notification banner |
+| `Pagination` | Previous / page numbers / Next controls |
+| `Modal` | Generic overlay for confirmations and lists |
+| `ConfirmDialog` | "Are you sure?" modal for destructive actions |
+| `Avatar` | Initials-based user avatar (no image upload in scope) |
+| `Badge` | Small label for role, unread count |
+| `Skeleton` | Loading placeholder matching content shape |
+| `DarkModeToggle` | Sun/moon icon button, reads/writes `localStorage` |
+| `CharCounter` | Live character count display for inputs |
+
+---
+
+### Out of Scope
+
+- Image uploads (avatars, post images)
+- Post status (NORMAL vs. ADMIN) — backend supports it, no UI needed
+- Admin/owner-specific views
+- Search
+- Direct messages
 
 ---
 
