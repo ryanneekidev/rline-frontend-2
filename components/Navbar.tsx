@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Bell, Sun, Moon, Home, User, LogOut, LogIn, UserPlus, Plus } from 'lucide-react';
+import { Bell, Sun, Moon, Monitor, Home, User, LogOut, LogIn, UserPlus, Plus } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { cn } from '@/lib/utils';
@@ -12,7 +12,7 @@ export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, unreadCount, logout } = useAuth();
-  const { theme, toggleTheme } = useTheme();
+  const { themePref, setThemePref } = useTheme();
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
 
@@ -103,13 +103,30 @@ export default function Navbar() {
                     >
                       <User className="h-4 w-4" /> Profile
                     </Link>
-                    <button
-                      onClick={toggleTheme}
-                      className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-foreground transition-colors hover:bg-background"
-                    >
-                      {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-                      {theme === 'dark' ? 'Light mode' : 'Dark mode'}
-                    </button>
+                    <div className="border-t border-border" />
+                    <div className="px-3 py-2">
+                      <div className="flex gap-0.5 rounded-lg border border-border bg-background p-0.5">
+                        {([
+                          { value: 'system', icon: <Monitor className="h-3.5 w-3.5" />, label: 'System' },
+                          { value: 'light',  icon: <Sun     className="h-3.5 w-3.5" />, label: 'Light'  },
+                          { value: 'dark',   icon: <Moon    className="h-3.5 w-3.5" />, label: 'Dark'   },
+                        ] as const).map(({ value, icon, label }) => (
+                          <button
+                            key={value}
+                            title={label}
+                            onClick={() => setThemePref(value)}
+                            className={cn(
+                              'flex flex-1 items-center justify-center rounded-md py-1.5 text-xs font-medium transition-colors',
+                              themePref === value
+                                ? 'bg-surface text-foreground shadow-sm'
+                                : 'text-muted hover:text-foreground'
+                            )}
+                          >
+                            {icon}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                     <div className="border-t border-border" />
                     <button
                       onClick={handleLogout}
