@@ -19,7 +19,8 @@ export default function Home() {
   const [likeLoadingId, setLikeLoadingId] = useState<string | null>(null);
   const [tab, setTab] = useState<FeedTab>('global');
   const [followingIds, setFollowingIds] = useState<string[]>([]);
-  const [page, setPage] = useState(1);
+  const [globalPage, setGlobalPage] = useState(1);
+  const [followingPage, setFollowingPage] = useState(1);
 
   // Fetch posts
   useEffect(() => {
@@ -40,10 +41,8 @@ export default function Home() {
       .catch(() => {});
   }, [user]);
 
-  // Reset to page 1 when tab changes
-  useEffect(() => {
-    setPage(1);
-  }, [tab]);
+  const page = tab === 'following' ? followingPage : globalPage;
+  const setPage = tab === 'following' ? setFollowingPage : setGlobalPage;
 
   const displayedPosts =
     tab === 'following' && user
