@@ -48,8 +48,11 @@ export default function NotificationsPage() {
   // Refs so the unmount cleanup always has the latest versions
   const authFetchRef = useRef(authFetch);
   const resetUnreadCountRef = useRef(resetUnreadCount);
+  const hasUnreadRef = useRef(false);
   authFetchRef.current = authFetch;
   resetUnreadCountRef.current = resetUnreadCount;
+  // Updated synchronously on every render — reflects current notifications state
+  hasUnreadRef.current = notifications.some((n) => !n.read);
 
   async function fetchNotifications() {
     const data = await authFetch('/notifications').then((r) => r.json());
@@ -68,9 +71,13 @@ export default function NotificationsPage() {
     resetUnreadCount();
   }, [loading, user]);
 
-  // Auto-mark all as read when leaving the page
+  // Auto-mark all as read when leaving the page.
+  // hasUnreadRef guards against React StrictMode's fake unmount firing this
+  // before the fetch has resolved (at that point notifications is still [] so
+  // hasUnreadRef.current is false and the call is skipped).
   useEffect(() => {
     return () => {
+      if (!hasUnreadRef.current) return;
       authFetchRef.current('/notifications/read-all', { method: 'PATCH' }).catch(() => {});
       resetUnreadCountRef.current();
     };
