@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
@@ -9,9 +9,13 @@ import { useToast } from '@/context/ToastContext';
 const USERNAME_MAX = 20;
 
 export default function RegisterPage() {
-  const { register } = useAuth();
+  const { register, user, loading } = useAuth();
   const { showToast } = useToast();
   const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && user) router.replace('/');
+  }, [user, loading]);
 
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');

@@ -30,7 +30,7 @@ interface AuthContextType {
   loading: boolean;
   login: (username: string, password: string) => Promise<AuthResult>;
   register: (username: string, email: string, password: string, confirmedPassword: string) => Promise<AuthResult>;
-  logout: () => void;
+  logout: () => Promise<void>;
   authFetch: (path: string, options?: RequestInit) => Promise<Response>;
   getToken: () => string | null;
   setLikes: React.Dispatch<React.SetStateAction<string[]>>;
@@ -185,7 +185,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { success: true };
   }
 
-  function logout() {
+  async function logout() {
+    await fetch(`${API_URL}/auth/logout`, { method: 'POST', credentials: 'include' });
     tokenRef.current = null;
     setUser(null);
     setLikes([]);
@@ -199,11 +200,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function authFetch(path: string, options: RequestInit = {}): Promise<Response> {
     const headers = new Headers(options.headers);
+    const hadToken = !!tokenRef.current;
     if (tokenRef.current) headers.set('Authorization', `Bearer ${tokenRef.current}`);
 
     let res = await fetch(`${API_URL}${path}`, { ...options, headers, credentials: 'include' });
 
-    if (res.status === 401 || res.status === 403) {
+    if ((res.status === 401 || res.status === 403) && hadToken) {
       const refreshed = await refresh();
       if (refreshed && tokenRef.current) {
         headers.set('Authorization', `Bearer ${tokenRef.current}`);

@@ -1,15 +1,19 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, user, loading } = useAuth();
   const { showToast } = useToast();
   const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && user) router.replace('/');
+  }, [user, loading]);
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
