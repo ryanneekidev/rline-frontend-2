@@ -52,6 +52,16 @@ export default function Home() {
   const totalPages = Math.max(1, Math.ceil(displayedPosts.length / PAGE_SIZE));
   const pagePosts = displayedPosts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
+  async function deletePost(postId: string) {
+    const res = await authFetch(`/posts/${postId}`, { method: 'DELETE' });
+    if (res.ok) {
+      setPosts((prev) => prev.filter((p) => p.id !== postId));
+      showToast('Post deleted', 'success');
+    } else {
+      showToast('Failed to delete post', 'error');
+    }
+  }
+
   async function toggleLike(post: Post) {
     if (!user) { window.location.href = '/login'; return; }
     setLikeLoadingId(post.id);
@@ -128,6 +138,8 @@ export default function Home() {
               liked={likes.includes(post.id)}
               likeLoading={likeLoadingId === post.id}
               onLike={() => toggleLike(post)}
+              isOwner={user?.id === post.author.id}
+              onDelete={() => deletePost(post.id)}
             />
           ))}
         </div>

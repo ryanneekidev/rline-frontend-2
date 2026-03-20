@@ -95,9 +95,20 @@ export default function UserProfilePage() {
       .finally(() => setPostsLoading(false));
   }, [profile]);
 
-  function handleLogout() {
-    logout();
+  async function handleLogout() {
+    await logout();
     router.push('/');
+  }
+
+  async function deletePost(postId: string) {
+    const res = await authFetch(`/posts/${postId}`, { method: 'DELETE' });
+    if (res.ok) {
+      setPosts((prev) => prev.filter((p) => p.id !== postId));
+      setPostCount((prev) => (prev !== null ? prev - 1 : prev));
+      showToast('Post deleted', 'success');
+    } else {
+      showToast('Failed to delete post', 'error');
+    }
   }
 
   async function toggleFollow() {
@@ -292,6 +303,8 @@ export default function UserProfilePage() {
                     liked={likes.includes(post.id)}
                     likeLoading={likeLoadingId === post.id}
                     onLike={() => toggleLike(post)}
+                    isOwner={user?.id === post.author.id}
+                    onDelete={() => deletePost(post.id)}
                   />
                 ))}
               </div>

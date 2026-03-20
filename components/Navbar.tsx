@@ -84,8 +84,8 @@ export default function Navbar() {
     setMenuOpen(false);
   }
 
-  function handleLogout() {
-    logout();
+  async function handleLogout() {
+    await logout();
     setProfileOpen(false);
     closeMenu();
     router.push('/');

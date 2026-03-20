@@ -3,11 +3,12 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Heart, ArrowLeft } from 'lucide-react';
+import { Heart, ArrowLeft, Pencil, Trash2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { API_URL } from '@/lib/config';
 import { cn, formatRelativeTime, formatAbsoluteDate, unescapeHtml } from '@/lib/utils';
+import ConfirmDialog from '@/components/ConfirmDialog';
 
 interface Comment {
   id: string;
@@ -41,6 +42,14 @@ export default function PostDetailPage() {
   const [commentErrors, setCommentErrors] = useState<{ field: string; message: string }[]>([]);
   const [commentSubmitting, setCommentSubmitting] = useState(false);
 
+  const [showPostDeleteConfirm, setShowPostDeleteConfirm] = useState(false);
+  const [postDeleteLoading, setPostDeleteLoading] = useState(false);
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState('');
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
+  const [commentDeleteLoading, setCommentDeleteLoading] = useState(false);
+
   async function fetchPost() {
     const res = await fetch(`${API_URL}/posts/${postId}`);
     const data = await res.json();
@@ -66,6 +75,49 @@ export default function PostDetailPage() {
       showToast('Failed to update like', 'error');
     }
     setLikeLoading(false);
+  }
+
+  async function handlePostDelete() {
+    setPostDeleteLoading(true);
+    const res = await authFetch(`/posts/${postId}`, { method: 'DELETE' });
+    if (res.ok) {
+      showToast('Post deleted', 'success');
+      router.push('/');
+    } else {
+      showToast('Failed to delete post', 'error');
+      setPostDeleteLoading(false);
+      setShowPostDeleteConfirm(false);
+    }
+  }
+
+  async function handleCommentEdit(commentId: string) {
+    setEditSubmitting(true);
+    const res = await authFetch(`/posts/${postId}/comments/${commentId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: editContent }),
+    });
+    if (res.ok) {
+      await fetchPost();
+      setEditingCommentId(null);
+      showToast('Comment updated', 'success');
+    } else {
+      showToast('Failed to update comment', 'error');
+    }
+    setEditSubmitting(false);
+  }
+
+  async function handleCommentDelete(commentId: string) {
+    setCommentDeleteLoading(true);
+    const res = await authFetch(`/posts/${postId}/comments/${commentId}`, { method: 'DELETE' });
+    if (res.ok) {
+      await fetchPost();
+      setDeletingCommentId(null);
+      showToast('Comment deleted', 'success');
+    } else {
+      showToast('Failed to delete comment', 'error');
+    }
+    setCommentDeleteLoading(false);
   }
 
   async function handleCommentSubmit(e: React.FormEvent) {
@@ -122,6 +174,27 @@ export default function PostDetailPage() {
   const liked = likes.includes(post.id);
 
   return (
+    <>
+    {showPostDeleteConfirm && (
+      <ConfirmDialog
+        title="Delete post"
+        message="Are you sure you want to delete this post? This cannot be undone."
+        confirmLabel="Delete"
+        loading={postDeleteLoading}
+        onConfirm={handlePostDelete}
+        onCancel={() => setShowPostDeleteConfirm(false)}
+      />
+    )}
+    {deletingCommentId && (
+      <ConfirmDialog
+        title="Delete comment"
+        message="Are you sure you want to delete this comment?"
+        confirmLabel="Delete"
+        loading={commentDeleteLoading}
+        onConfirm={() => handleCommentDelete(deletingCommentId)}
+        onCancel={() => setDeletingCommentId(null)}
+      />
+    )}
     <div className="flex flex-col gap-6">
       <Link href="/" className="flex w-fit items-center gap-1 text-sm text-muted transition-colors hover:text-primary">
         <ArrowLeft className="h-4 w-4" /> Back to feed
@@ -145,7 +218,7 @@ export default function PostDetailPage() {
           {unescapeHtml(post.content)}
         </p>
 
-        <div className="border-t border-border pt-3">
+        <div className="flex items-center justify-between border-t border-border pt-3">
           <button
             onClick={toggleLike}
             disabled={likeLoading}
@@ -157,6 +230,22 @@ export default function PostDetailPage() {
             <Heart className={cn('h-4 w-4', liked && 'fill-primary')} />
             <span>{post.likes} {post.likes === 1 ? 'like' : 'likes'}</span>
           </button>
+          {user?.id === post.author.id && (
+            <div className="flex items-center gap-3">
+              <Link
+                href={`/posts/${postId}/edit`}
+                className="flex items-center gap-1.5 text-sm text-muted transition-colors hover:text-foreground"
+              >
+                <Pencil className="h-4 w-4" /> Edit
+              </Link>
+              <button
+                onClick={() => setShowPostDeleteConfirm(true)}
+                className="flex items-center gap-1.5 text-sm text-muted transition-colors hover:text-destructive"
+              >
+                <Trash2 className="h-4 w-4" /> Delete
+              </button>
+            </div>
+          )}
         </div>
       </article>
 
@@ -180,9 +269,59 @@ export default function PostDetailPage() {
                 {' · '}
                 {formatRelativeTime(comment.createdAt)}
               </p>
-              <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
-                {unescapeHtml(comment.content)}
-              </p>
+              {editingCommentId === comment.id ? (
+                <div className="flex flex-col gap-2">
+                  <textarea
+                    value={editContent}
+                    onChange={(e) => setEditContent(e.target.value)}
+                    rows={3}
+                    maxLength={COMMENT_MAX}
+                    className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                  <div className="flex items-center justify-between">
+                    <span className={cn('text-xs', editContent.length >= COMMENT_MAX - 20 ? 'text-destructive' : 'text-muted')}>
+                      {editContent.length} / {COMMENT_MAX}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setEditingCommentId(null)}
+                        className="text-sm text-muted transition-colors hover:text-foreground"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => handleCommentEdit(comment.id)}
+                        disabled={editSubmitting}
+                        className="rounded-lg bg-primary px-3 py-1 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-50"
+                      >
+                        {editSubmitting ? 'Saving…' : 'Save'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+                    {unescapeHtml(comment.content)}
+                  </p>
+                  {user?.id === comment.author.id && (
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => { setEditingCommentId(comment.id); setEditContent(unescapeHtml(comment.content)); }}
+                        className="flex items-center gap-1 text-xs text-muted transition-colors hover:text-foreground"
+                      >
+                        <Pencil className="h-3 w-3" /> Edit
+                      </button>
+                      <button
+                        onClick={() => setDeletingCommentId(comment.id)}
+                        className="flex items-center gap-1 text-xs text-muted transition-colors hover:text-destructive"
+                      >
+                        <Trash2 className="h-3 w-3" /> Delete
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           ))}
         </div>
@@ -229,5 +368,6 @@ export default function PostDetailPage() {
         </div>
       </section>
     </div>
+    </>
   );
 }
