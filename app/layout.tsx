@@ -31,12 +31,12 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={`${inter.variable} font-sans antialiased`}>
+      <body className={`${inter.variable} flex min-h-screen flex-col font-sans antialiased`}>
         <ThemeProvider>
           <ToastProvider>
             <AuthProvider>
               <Navbar />
-              <main className="mx-auto max-w-[800px] px-4 py-6 sm:px-6">
+              <main className="mx-auto w-full max-w-[800px] flex-1 px-4 py-6 sm:px-6">
                 {children}
               </main>
             </AuthProvider>
