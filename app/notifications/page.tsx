@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
@@ -17,12 +17,22 @@ interface Notification {
   post?: { title: string; id: string } | null;
 }
 
-function notificationText(n: Notification): string {
-  switch (n.type) {
-    case 'LIKE':    return `${n.actor.username} liked your post "${n.post?.title}"`;
-    case 'COMMENT': return `${n.actor.username} commented on your post "${n.post?.title}"`;
-    case 'FOLLOW':  return `${n.actor.username} followed you`;
-  }
+const GROUP_ORDER = ['Today', 'Yesterday', 'Last 7 days', 'Earlier'] as const;
+type GroupLabel = (typeof GROUP_ORDER)[number];
+
+function getTimeGroup(dateStr: string): GroupLabel {
+  const now = new Date();
+  const date = new Date(dateStr);
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterdayStart = new Date(todayStart);
+  yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+  const weekStart = new Date(todayStart);
+  weekStart.setDate(weekStart.getDate() - 7);
+
+  if (date >= todayStart) return 'Today';
+  if (date >= yesterdayStart) return 'Yesterday';
+  if (date >= weekStart) return 'Last 7 days';
+  return 'Earlier';
 }
 
 export default function NotificationsPage() {
@@ -35,12 +45,18 @@ export default function NotificationsPage() {
   const [markAllLoading, setMarkAllLoading] = useState(false);
   const [markReadId, setMarkReadId] = useState<string | null>(null);
 
+  // Refs so the unmount cleanup always has the latest versions
+  const authFetchRef = useRef(authFetch);
+  const resetUnreadCountRef = useRef(resetUnreadCount);
+  authFetchRef.current = authFetch;
+  resetUnreadCountRef.current = resetUnreadCount;
+
   async function fetchNotifications() {
     const data = await authFetch('/notifications').then((r) => r.json());
     setNotifications(data);
   }
 
-  // Initial fetch + auth guard
+  // Initial fetch + auth guard + clear badge on enter
   useEffect(() => {
     if (loading) return;
     if (!user) { router.push('/login'); return; }
@@ -51,6 +67,14 @@ export default function NotificationsPage() {
 
     resetUnreadCount();
   }, [loading, user]);
+
+  // Auto-mark all as read when leaving the page
+  useEffect(() => {
+    return () => {
+      authFetchRef.current('/notifications/read-all', { method: 'PATCH' }).catch(() => {});
+      resetUnreadCountRef.current();
+    };
+  }, []);
 
   // Refetch when a new SSE event arrives
   useEffect(() => {
@@ -85,9 +109,18 @@ export default function NotificationsPage() {
 
   const hasUnread = notifications.some((n) => !n.read);
 
+  const grouped = GROUP_ORDER.reduce<{ label: GroupLabel; items: Notification[] }[]>(
+    (acc, label) => {
+      const items = notifications.filter((n) => getTimeGroup(n.createdAt) === label);
+      if (items.length > 0) acc.push({ label, items });
+      return acc;
+    },
+    []
+  );
+
   if (loading || fetchLoading) {
     return (
-      <div className="flex flex-col gap-4 animate-pulse">
+      <div className="flex animate-pulse flex-col gap-4">
         <div className="flex items-center justify-between">
           <div className="h-7 w-36 rounded-lg bg-surface" />
           <div className="h-8 w-36 rounded-lg bg-surface" />
@@ -117,49 +150,54 @@ export default function NotificationsPage() {
       {notifications.length === 0 ? (
         <p className="py-16 text-center text-sm text-muted">You&apos;re all caught up.</p>
       ) : (
-        <div className="flex flex-col gap-2">
-          {notifications.map((n) => (
-            <div
-              key={n.id}
-              className={cn(
-                'flex items-start justify-between gap-3 rounded-xl border border-border bg-surface p-4 transition-opacity',
-                !n.read && 'border-l-4 border-l-primary',
-                n.read && 'opacity-50'
-              )}
-            >
-              <div className="flex flex-col gap-1 min-w-0">
-                <p className="text-sm text-foreground">
-                  {n.type !== 'FOLLOW' && n.post ? (
-                    <>
-                      <Link href={`/users/${n.actor.username}`} className="font-medium hover:text-primary transition-colors">
-                        {n.actor.username}
-                      </Link>
-                      {n.type === 'LIKE' ? ' liked your post ' : ' commented on your post '}
-                      <Link href={`/posts/${n.post.id}`} className="font-medium hover:text-primary transition-colors">
-                        &ldquo;{n.post.title}&rdquo;
-                      </Link>
-                    </>
-                  ) : (
-                    <>
-                      <Link href={`/users/${n.actor.username}`} className="font-medium hover:text-primary transition-colors">
-                        {n.actor.username}
-                      </Link>
-                      {' followed you'}
-                    </>
+        <div className="flex flex-col gap-6">
+          {grouped.map(({ label, items }) => (
+            <div key={label} className="flex flex-col gap-2">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">{label}</h2>
+              {items.map((n) => (
+                <div
+                  key={n.id}
+                  className={cn(
+                    'flex items-start justify-between gap-3 rounded-xl border border-border bg-surface p-4 transition-opacity',
+                    !n.read && 'border-l-4 border-l-primary',
+                    n.read && 'opacity-50'
                   )}
-                </p>
-                <p className="text-xs text-muted">{formatRelativeTime(n.createdAt)}</p>
-              </div>
-
-              {!n.read && (
-                <button
-                  onClick={() => markRead(n.id)}
-                  disabled={markReadId === n.id}
-                  className="shrink-0 rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-muted transition-colors hover:border-primary hover:text-primary disabled:opacity-50"
                 >
-                  {markReadId === n.id ? '…' : 'Mark as read'}
-                </button>
-              )}
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <p className="text-sm text-foreground">
+                      {n.type !== 'FOLLOW' && n.post ? (
+                        <>
+                          <Link href={`/users/${n.actor.username}`} className="font-medium transition-colors hover:text-primary">
+                            {n.actor.username}
+                          </Link>
+                          {n.type === 'LIKE' ? ' liked your post ' : ' commented on your post '}
+                          <Link href={`/posts/${n.post.id}`} className="font-medium transition-colors hover:text-primary">
+                            &ldquo;{n.post.title}&rdquo;
+                          </Link>
+                        </>
+                      ) : (
+                        <>
+                          <Link href={`/users/${n.actor.username}`} className="font-medium transition-colors hover:text-primary">
+                            {n.actor.username}
+                          </Link>
+                          {' followed you'}
+                        </>
+                      )}
+                    </p>
+                    <p className="text-xs text-muted">{formatRelativeTime(n.createdAt)}</p>
+                  </div>
+
+                  {!n.read && (
+                    <button
+                      onClick={() => markRead(n.id)}
+                      disabled={markReadId === n.id}
+                      className="shrink-0 rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-muted transition-colors hover:border-primary hover:text-primary disabled:opacity-50"
+                    >
+                      {markReadId === n.id ? '…' : 'Mark as read'}
+                    </button>
+                  )}
+                </div>
+              ))}
             </div>
           ))}
         </div>
