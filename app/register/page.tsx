@@ -168,7 +168,7 @@ export default function RegisterPage() {
         <p className="mt-6 text-center text-sm text-muted">
           Already have an account?{' '}
           <Link href="/login" className="font-medium text-primary hover:underline">
-            Login
+            Sign in
           </Link>
         </p>
       </div>

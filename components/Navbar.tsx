@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Bell, Sun, Moon, Menu, X, Home, PenSquare, User, LogOut } from 'lucide-react';
+import { Bell, Sun, Moon, Menu, X, Home, PenSquare, User, LogOut, LogIn, UserPlus } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { cn } from '@/lib/utils';
@@ -24,7 +24,7 @@ function NavLink({
       href={href}
       onClick={onClick}
       className={cn(
-        'text-sm font-medium transition-colors',
+        'flex items-center gap-1.5 text-sm font-medium transition-colors',
         active ? 'text-primary' : 'text-foreground hover:text-primary'
       )}
     >
@@ -107,8 +107,8 @@ export default function Navbar() {
 
         {/* Desktop nav */}
         <div className="hidden items-center gap-6 sm:flex">
-          <NavLink href="/" active={isHome}>Home</NavLink>
-          <NavLink href="/posts/new" active={isCreate}>Create</NavLink>
+          <NavLink href="/" active={isHome}><Home className="h-4 w-4" /> Home</NavLink>
+          <NavLink href="/posts/new" active={isCreate}><PenSquare className="h-4 w-4" /> Create</NavLink>
 
           {user ? (
             <>
@@ -156,8 +156,8 @@ export default function Navbar() {
             </>
           ) : (
             <>
-              <NavLink href="/login" active={pathname === '/login'}>Login</NavLink>
-              <NavLink href="/register" active={pathname === '/register'}>Register</NavLink>
+              <NavLink href="/login" active={pathname === '/login'}><LogIn className="h-4 w-4" /> Sign in</NavLink>
+              <NavLink href="/register" active={pathname === '/register'}><UserPlus className="h-4 w-4" /> Sign up</NavLink>
             </>
           )}
 
@@ -226,10 +226,10 @@ export default function Navbar() {
               ) : (
                 <>
                   <MobileNavLink href="/login" active={pathname === '/login'} onClick={closeMenu}>
-                    Login
+                    <LogIn className="h-4 w-4" /> Sign in
                   </MobileNavLink>
                   <MobileNavLink href="/register" active={pathname === '/register'} onClick={closeMenu}>
-                    Register
+                    <UserPlus className="h-4 w-4" /> Sign up
                   </MobileNavLink>
                 </>
               )}
