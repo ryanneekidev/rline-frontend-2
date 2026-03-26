@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { cn } from '@/lib/utils';
+import { ImagePlus, X } from 'lucide-react';
 
 const TITLE_MAX = 150;
 const CONTENT_MAX = 5000;
@@ -137,21 +138,39 @@ export default function NewPostPage() {
             )}
           </div>
 
-          {/* Content */}
+          {/* Media */}
           <div className="flex flex-col gap-1">
-            <div className="flex items-center justify-between">
-              <label htmlFor="content" className="text-sm font-medium text-foreground">Media</label>
-            </div>
+            <label className="text-sm font-medium text-foreground">Media</label>
             <input
-              type='file'
-              name="myImage"
+              type="file"
               id="media-upload"
               accept="image/*"
+              className="hidden"
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary"
             />
-            {fieldError('content') && (
-              <p className="text-xs text-destructive">{fieldError('content')}</p>
+            {file ? (
+              <div className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <ImagePlus className="h-4 w-4 shrink-0 text-primary" />
+                  <span className="truncate text-sm text-foreground">{file.name}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFile(null)}
+                  className="ml-2 shrink-0 text-muted transition-colors hover:text-destructive"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <label
+                htmlFor="media-upload"
+                className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border border-dashed border-border bg-background px-3 py-6 text-center transition-colors hover:border-primary hover:bg-primary-light/20"
+              >
+                <ImagePlus className="h-6 w-6 text-muted" />
+                <span className="text-sm text-muted">Click to attach an image</span>
+                <span className="text-xs text-muted">PNG, JPG, GIF, WEBP</span>
+              </label>
             )}
           </div>
 
