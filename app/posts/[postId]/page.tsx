@@ -3,10 +3,11 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Heart, ArrowLeft, Pencil, Trash2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
-import { API_URL } from '@/lib/config';
+import { API_URL, S3_BASE_URL } from '@/lib/config';
 import { cn, formatRelativeTime, formatAbsoluteDate, unescapeHtml } from '@/lib/utils';
 import ConfirmDialog from '@/components/ConfirmDialog';
 
@@ -23,6 +24,7 @@ interface PostDetail {
   content: string;
   createdAt: string;
   likes: number;
+  mediaKey?: string | null;
   author: { id: string; username: string };
   comments: Comment[];
 }
@@ -217,6 +219,19 @@ export default function PostDetailPage() {
         <p className="whitespace-pre-wrap text-base leading-relaxed text-foreground">
           {unescapeHtml(post.content)}
         </p>
+
+        {post.mediaKey && (
+          <div className="relative w-full overflow-hidden rounded-lg">
+            <Image
+              src={`${S3_BASE_URL}/${post.mediaKey}`}
+              alt="Post image"
+              width={800}
+              height={600}
+              unoptimized
+              className="w-full h-auto object-cover rounded-lg"
+            />
+          </div>
+        )}
 
         <div className="flex items-center justify-between border-t border-border pt-3">
           <button

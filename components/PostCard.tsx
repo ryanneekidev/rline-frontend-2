@@ -2,8 +2,10 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Heart, MessageCircle, Pencil, Trash2 } from 'lucide-react';
 import { cn, formatRelativeTime, unescapeHtml } from '@/lib/utils';
+import { S3_BASE_URL } from '@/lib/config';
 import ConfirmDialog from '@/components/ConfirmDialog';
 
 export interface Post {
@@ -12,6 +14,7 @@ export interface Post {
   content: string;
   createdAt: string;
   likes: number;
+  mediaKey?: string | null;
   author: { id: string; username: string };
   comments: { id: string }[];
 }
@@ -78,6 +81,22 @@ export default function PostCard({ post, liked, likeLoading, onLike, isOwner, on
 
         {/* Content preview */}
         <p className="text-sm leading-relaxed text-foreground">{preview}</p>
+
+        {/* Media thumbnail */}
+        {post.mediaKey && (
+          <Link href={`/posts/${post.id}`}>
+            <div className="relative w-full overflow-hidden rounded-lg">
+              <Image
+                src={`${S3_BASE_URL}/${post.mediaKey}`}
+                alt="Post image"
+                width={800}
+                height={400}
+                unoptimized
+                className="w-full h-48 object-cover rounded-lg"
+              />
+            </div>
+          </Link>
+        )}
 
         {/* Action bar */}
         <div className="flex items-center gap-4 pt-1">

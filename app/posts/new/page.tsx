@@ -17,6 +17,7 @@ export default function NewPostPage() {
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [file, setFile] = useState<File | null>(null);
   const [errors, setErrors] = useState<{ field: string; message: string }[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
@@ -49,10 +50,33 @@ export default function NewPostPage() {
 
     setSubmitting(true);
     setErrors([]);
+    let mediaKey: string | undefined;
+    if (file) {
+      try {
+        const keyReq = await authFetch('/upload/presign', { method: 'POST' });
+        const keyReqJson = await keyReq.json();
+
+        const presignedUrl = keyReqJson.presignedUrl;
+        mediaKey = keyReqJson.key;
+
+        const uploadRes = await fetch(presignedUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': file.type },
+          body: file,
+        });
+
+        if (!uploadRes.ok) throw new Error('S3 upload failed');
+      } catch {
+        showToast('Failed to upload image. Please try again.', 'error');
+        setSubmitting(false);
+        return;
+      }
+    }
+
     const res = await authFetch('/posts/new', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, content }),
+      body: JSON.stringify({ title, content, mediaKey }),
     });
     if (res.ok) {
       showToast('Post created!', 'success');
@@ -106,6 +130,24 @@ export default function NewPostPage() {
               rows={8}
               maxLength={CONTENT_MAX}
               placeholder="Write your post…"
+              className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            {fieldError('content') && (
+              <p className="text-xs text-destructive">{fieldError('content')}</p>
+            )}
+          </div>
+
+          {/* Content */}
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center justify-between">
+              <label htmlFor="content" className="text-sm font-medium text-foreground">Media</label>
+            </div>
+            <input
+              type='file'
+              name="myImage"
+              id="media-upload"
+              accept="image/*"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary"
             />
             {fieldError('content') && (
