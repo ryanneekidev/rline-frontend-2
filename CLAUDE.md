@@ -38,11 +38,15 @@ npm start       # start production server
 |---|---|---|
 | `.env.development` | `NEXT_PUBLIC_API_URL` | `http://localhost:4000` |
 | `.env.production` | `NEXT_PUBLIC_API_URL` | `https://api.rline.ryanneeki.xyz` |
+| both | `NEXT_PUBLIC_S3_BASE_URL` | `https://rline-bucket.s3.ap-northeast-1.amazonaws.com` |
 
-Both files are committed (no secrets — just API URLs). Consumed via `lib/config.ts`:
+Both files are committed (no secrets — just URLs). Consumed via `lib/config.ts`:
 ```ts
 export const API_URL = process.env.NEXT_PUBLIC_API_URL;
+export const S3_BASE_URL = process.env.NEXT_PUBLIC_S3_BASE_URL;
 ```
+
+`next.config.ts` also whitelists `rline-bucket.s3.ap-northeast-1.amazonaws.com` as a remote pattern so Next.js `<Image>` can serve optimized images from S3. Post images are rendered with `unoptimized` to bypass resizing (raw S3 URL is used directly).
 
 ---
 
@@ -57,24 +61,26 @@ app/
 ├── register/page.tsx
 ├── posts/
 │   ├── new/page.tsx              # Create post (auth-guarded)
-│   └── [postId]/page.tsx         # Post detail + comments
+│   └── [postId]/
+│       ├── page.tsx              # Post detail + comments (with inline comment edit/delete)
+│       └── edit/page.tsx         # Edit post title/content or delete post (owner-only, auth-guarded)
 ├── users/[username]/page.tsx     # User profile
 └── notifications/page.tsx        # Notifications (auth-guarded)
 
 components/
-├── Navbar.tsx                    # Persistent top nav (desktop + mobile hamburger)
+├── Navbar.tsx                    # Persistent top nav (logo + icon row; theme picker in avatar dropdown)
 ├── PostCard.tsx                  # Post preview card
 ├── Pagination.tsx                # Previous / page numbers / Next
 ├── Modal.tsx                     # Generic overlay (followers/following lists)
 └── ConfirmDialog.tsx             # Destructive action confirmation
 
 context/
-├── ThemeContext.tsx               # Dark/light mode (localStorage + system preference)
+├── ThemeContext.tsx               # Dark/light/system mode (localStorage + matchMedia)
 ├── AuthContext.tsx                # Auth state, token, SSE stream, unread count
 └── ToastContext.tsx               # Global toast notifications (success / error / info)
 
 lib/
-├── config.ts                     # API_URL export
+├── config.ts                     # API_URL and S3_BASE_URL exports
 └── utils.ts                      # cn(), formatRelativeTime(), formatAbsoluteDate(), unescapeHtml()
 ```
 
@@ -148,8 +154,8 @@ Colors are defined as CSS variables in `globals.css` and mapped into Tailwind vi
 Key design decisions:
 
 - **Token in `useRef`** (not state) to avoid closure staleness in `authFetch`
-- **Silent refresh on mount**: calls `POST /auth/refresh` with the HTTP-only cookie; sets user + token if successful
-- **Likes array**: fetched on login/refresh, kept in sync locally on like/unlike to avoid refetching
+- **Silent refresh on mount**: calls `POST /auth/refresh` with the HTTP-only cookie; if successful, sets user + token, then in parallel fetches the likes array (`GET /users/:id/likes`) and the initial unread count (`GET /notifications`)
+- **Likes array**: embedded in the `POST /auth/login` response; fetched separately via `GET /users/:id/likes` on silent refresh. Kept in sync locally on like/unlike to avoid refetching.
 - **Global SSE stream**: opened when `user` is set, closed on logout. Manages the navbar unread badge across all pages. Pages do not open their own SSE connections — they watch `sseEventCount` instead.
 - **`sseEventCount`**: incremented on every SSE event. Pages like `/notifications` use this as a `useEffect` dependency to refetch.
 - **Info toast on SSE**: fires `showToast('Someone liked your post', 'info')` etc., parsed from the `type` field in the SSE payload.
@@ -180,14 +186,21 @@ Three types with auto-dismiss:
 
 ## Navigation
 
-**Desktop** (≥640px): Logo · Home · Create · Bell (with unread badge) · Avatar dropdown · Theme toggle
+Single responsive navbar — no breakpoint-swapped layout.
 
-The avatar dropdown (shown when logged in) contains:
+**Logged in**: Logo · Create (`+`) · Bell (with unread badge) · Avatar button → dropdown
+
+**Logged out**: Logo · Sign in · Sign up
+
+The avatar dropdown contains:
+- Home link
 - Profile link → `/users/[username]`
 - Separator
-- Logout button
+- Theme picker — 3-way segmented control: System / Light / Dark (icons only, no labels)
+- Separator
+- Logout button (text-destructive)
 
-**Mobile** (<640px): Logo · Theme toggle · Hamburger → vertical dropdown with all links + logout
+Active-page states: the Create icon and Bell icon turn `text-primary` when on their respective routes. The avatar button gets a `ring-2 ring-primary` ring when on the user's own profile page. Click-outside closes the dropdown via a `mousedown` listener.
 
 ---
 
@@ -211,16 +224,29 @@ The avatar dropdown (shown when logged in) contains:
 ### Post Detail (`/posts/[postId]`)
 
 - Full content with HTML entity unescaping
-- Relative + absolute timestamp
+- Relative + absolute timestamp (relative shown, absolute in parentheses)
 - Like/unlike inline
-- Comment form with char counter (1000 max)
-- On comment submit: refetch full post (backend returns no comment object), clear textarea
+- Post image rendered with Next.js `<Image unoptimized>` when `mediaKey` is set (`${S3_BASE_URL}/${mediaKey}`)
+- Edit link + Delete button shown to post owner (Edit → `/posts/[postId]/edit`)
+- Comment form with char counter (1000 max); on submit: refetch full post (backend returns no comment object), clear textarea
+- Comment edit (inline textarea) and delete (ConfirmDialog) available to comment owner
+- On comment edit: `PATCH /posts/:postId/comments/:id`, then refetch full post
 
 ### Create Post (`/posts/new`)
 
 - Auth-guarded (redirects to `/login`)
 - Title (150 max) + content (5000 max) with char counters
 - Counter turns `text-destructive` within 20 chars of limit
+- Optional image upload: dashed drop-zone when no file selected; shows filename + remove button once selected
+- Upload flow: `POST /upload/presign` → get `{ presignedUrl, key }` → `PUT` file directly to S3 → include `mediaKey` in `POST /posts/new`
+
+### Edit Post (`/posts/[postId]/edit`)
+
+- Owner-only, auth-guarded — non-owners are redirected to the post detail page
+- Pre-fills title and content (unescaped) fetched on mount
+- Same char counters + validation as Create Post (no image editing — mediaKey is preserved as-is)
+- "Delete post" button triggers ConfirmDialog; on confirm: `DELETE /posts/:postId`, redirect to `/`
+- Save: `PATCH /posts/:postId` with `{ title, content }`
 
 ### User Profile (`/users/[username]`)
 
@@ -261,8 +287,8 @@ Confirmed shapes (not always what the docs imply — verify before assuming):
 | `GET /users/:userId/is-following` | raw boolean |
 | `POST /auth/login` (failure) | `{ success: false, message: string }` |
 
-### Edit / Delete Not Implemented
-Post and comment edit/delete are **out of scope**. The backend CORS config does not allow `PATCH` or `DELETE` from the frontend domain. No UI for these exists.
+### Edit / Delete
+Post edit and delete, and comment edit and delete, are all fully implemented. The backend supports `PATCH` and `DELETE` from the frontend domain. See the API Reference below for the exact endpoints. Image editing is not supported on the edit page — the existing `mediaKey` is preserved but cannot be changed.
 
 ### Client-Side Pagination
 There are no server-side pagination parameters. All posts are fetched at once (`GET /posts/all`) and sliced client-side at 10 per page.
@@ -281,16 +307,26 @@ All requests to `API_URL`. Protected routes require `Authorization: Bearer <toke
 | POST | `/auth/register` | No | Creates account |
 | POST | `/auth/refresh` | Cookie | Returns new access token |
 
+### Upload — `/upload/*`
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| POST | `/upload/presign` | Yes | Returns `{ presignedUrl, key }` — PUT the file directly to S3 using `presignedUrl`, then pass `key` as `mediaKey` when creating the post |
+
 ### Posts — `/posts/*`
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
 | GET | `/posts/all` | No | All posts, newest first |
 | GET | `/posts/:postId` | No | Single post with comments |
-| POST | `/posts/new` | Yes | Create post; body `{ title, content }` |
+| POST | `/posts/new` | Yes | Create post; body `{ title, content, mediaKey? }` |
+| PATCH | `/posts/:postId` | Yes | Edit post; body `{ title, content }` |
+| DELETE | `/posts/:postId` | Yes | Delete post |
 | POST | `/posts/:postId/like` | Yes | Like a post |
 | POST | `/posts/:postId/dislike` | Yes | Unlike a post (no body needed) |
 | POST | `/posts/:postId/comments/new` | Yes | Comment; body `{ content }` |
+| PATCH | `/posts/:postId/comments/:id` | Yes | Edit comment; body `{ content }` |
+| DELETE | `/posts/:postId/comments/:id` | Yes | Delete comment |
 
 ### Users — `/users/*`
 
@@ -301,6 +337,7 @@ All requests to `API_URL`. Protected routes require `Authorization: Bearer <toke
 | GET | `/users/:userId/following` | No | `[{ id, username }]` |
 | GET | `/users/:userId/follow-counts` | No | `{ followersCount, followingCount }` |
 | GET | `/users/:userId/posts/count` | No | Raw number |
+| GET | `/users/:userId/likes` | No | `[{ postId }]` — user's liked posts |
 | GET | `/users/:userId/is-following` | Yes | Raw boolean |
 | POST | `/users/follow` | Yes | Body `{ followingId }` |
 | POST | `/users/unfollow` | Yes | Body `{ followingId }` |
